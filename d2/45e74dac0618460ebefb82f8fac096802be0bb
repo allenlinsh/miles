@@ -1,0 +1,22 @@
+miles/dashboard/server.py
+  s_f8c8ac0b627260::t_7e124ee9c7cb24 28
+  s_f8c8ac0b627260::t_87b0076773d09d 88
+tests/fast/dashboard/test_server.py
+  s_f8c8ac0b627260::t_15755bed9f824c 68-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d245e74dac0618460ebefb82f8fac096802be0bb",
+  "prompts": {},
+  "sessions": {
+    "s_f8c8ac0b627260": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577b48ad-b1cc-4ebe-841e-dd6c5d356f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Allen Lin <allen@osmosis.ai>"
+    }
+  }
+}
