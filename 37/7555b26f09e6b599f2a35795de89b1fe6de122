@@ -1,0 +1,19 @@
+miles/dashboard/static/app.js
+  s_f8c8ac0b627260::t_1631a407311456 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "377555b26f09e6b599f2a35795de89b1fe6de122",
+  "prompts": {},
+  "sessions": {
+    "s_f8c8ac0b627260": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577b48ad-b1cc-4ebe-841e-dd6c5d356f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Allen Lin <allen@osmosis.ai>"
+    }
+  }
+}
