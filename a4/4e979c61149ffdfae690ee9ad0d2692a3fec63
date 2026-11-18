@@ -1,0 +1,22 @@
+miles/dashboard/static/views_metrics.js
+  s_f8c8ac0b627260::t_0d85c1bb36111a 266-267
+  s_f8c8ac0b627260::t_72375a130c2873 208
+  s_f8c8ac0b627260::t_ed81aa53efab74 218,224-226
+  s_f8c8ac0b627260::t_95ca0c26fb67bb 131,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a44e979c61149ffdfae690ee9ad0d2692a3fec63",
+  "prompts": {},
+  "sessions": {
+    "s_f8c8ac0b627260": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577b48ad-b1cc-4ebe-841e-dd6c5d356f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Allen Lin <allen@osmosis.ai>"
+    }
+  }
+}
