@@ -5,12 +5,17 @@ segment. `_reassemble_full_row` de-interleaves the all-gathered per-rank rows ba
 full natural-order row so per-segment MRoPE positions can be rebuilt and re-sliced. This
 test checks that reconstruction is the exact inverse of `slice_with_cp` (the function miles
 uses to shard the tokens), and that re-slicing with `_natural_to_zigzag_slice` round-trips.
+It also checks that the patched forward passes each rank its local MRoPE `position_ids`.
 """
+
+import sys
+import types
 
 import pytest
 import torch
 import torch.nn.functional as F
 
+import miles_plugins.models.qwen3_vl as qwen3_vl
 from miles_plugins.models.qwen3_vl import _natural_to_zigzag_slice, _reassemble_full_row
 
 
@@ -48,6 +53,21 @@ def _build_like_get_batch(sample_lens, cp_size, pad_size=8):
     return samples, per_rank, cu
 
 
+class _FakeQwen3VLModel:
+    """Stands in for megatron-bridge 0.7's Qwen3VLModel, which rejects a CP-pre-sharded THD row
+    without explicit rank-local MRoPE positions before it ever calls get_rope_index."""
+
+    _cp_local_vision_embed_indices = None
+    config = types.SimpleNamespace(spatial_merge_size=2)
+    image_token_id, video_token_id, vision_start_token_id = -1, -2, -3
+    cp_size = 1
+
+    def forward(self, input_ids, position_ids=None, packed_seq_params=None, **kwargs):
+        if int(packed_seq_params.cu_seqlens_q[-1]) == self.cp_size * input_ids.numel() and position_ids is None:
+            raise ValueError("Pre-sharded packed CP inputs require explicit rank-local 3D MRoPE position_ids.")
+        return position_ids
+
+
 @pytest.mark.parametrize(
     "cp_size,sample_lens",
     [(2, [10, 7, 13]), (2, [16, 16]), (4, [20, 9, 30, 5]), (2, [3]), (4, [40, 17])],
@@ -78,3 +98,31 @@ def test_reassemble_bails_on_indivisible_segment():
     cu = [0, 6]  # 6 not divisible by 2*cp=4
     gathered = [torch.zeros(3, dtype=torch.long), torch.zeros(3, dtype=torch.long)]
     assert _reassemble_full_row(gathered, cu, cp_size=2) is None
+
+
+@pytest.mark.parametrize("cp_size,sample_lens", [(2, [10, 7, 13]), (4, [20, 9, 30, 5])])
+def test_cp_forward_passes_rank_local_position_ids(monkeypatch, cp_size, sample_lens):
+    module_name = "megatron.bridge.models.qwen_vl.modelling_qwen3_vl.model"
+    fake_mod = types.ModuleType(module_name)
+    fake_mod.Qwen3VLModel = type("Qwen3VLModel", (_FakeQwen3VLModel,), {"cp_size": cp_size})
+    fake_mod.get_rope_index = lambda *args, **kwargs: (None, None)
+    fake_mod.preprocess_packed_seqs = lambda input_ids, attention_mask, *args, **kwargs: (input_ids, None)
+    monkeypatch.setitem(sys.modules, module_name, fake_mod)
+    qwen3_vl._patch_model_forward_and_rope_index()
+
+    _, per_rank, cu = _build_like_get_batch(sample_lens, cp_size)
+    monkeypatch.setattr(
+        qwen3_vl, "_cp_allgather_unzigzag", lambda flat, cu, cp: _reassemble_full_row(per_rank, cu, cp)
+    )
+    psp = types.SimpleNamespace(qkv_format="thd", cu_seqlens_q=torch.tensor(cu))
+    for rank in range(cp_size):
+        monkeypatch.setattr(qwen3_vl, "_cp_size_rank", lambda rank=rank: (cp_size, rank))
+        position_ids = fake_mod.Qwen3VLModel().forward(
+            input_ids=per_rank[rank].view(1, -1), position_ids=None, packed_seq_params=psp
+        )
+
+        # Text-only segments restart at 0; each rank holds its zigzag chunks of every segment.
+        expected = torch.cat(
+            [_slice_with_cp(torch.arange(cu[i + 1] - cu[i]), cp_size, rank) for i in range(len(cu) - 1)]
+        )
+        assert torch.equal(position_ids, expected.view(1, 1, -1).expand(3, 1, -1))
