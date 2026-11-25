@@ -120,6 +120,13 @@ def _patch_model_forward_and_rope_index() -> None:
             _tls.packed_positions = packed
         if ctx is not None:
             _tls.cp_local = ctx
+            # Under CP, megatron-bridge 0.7 raises before calling get_rope_index when position_ids is None,
+            # so pass the positions directly instead of only through patched_get_rope_index.
+            if packed is not None:
+                if len(args) >= 2:
+                    args = (args[0], packed, *args[2:])
+                else:
+                    kwargs["position_ids"] = packed
         try:
             return orig_forward(self, *args, **kwargs)
         finally:
